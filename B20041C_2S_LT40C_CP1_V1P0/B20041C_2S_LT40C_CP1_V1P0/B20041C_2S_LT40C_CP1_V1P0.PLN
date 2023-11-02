@@ -1,0 +1,798 @@
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// V01 init version created by Harvey-->testplan:B20041C_CP_Test_Plan_V1.0_20230821;       2023/8/21     //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+SET_DEC_FILE  ".\PAT\pins.dec"
+#include <time.h>
+#include <stdio.h>
+#include <string.h> 
+#include <stdlib.h>
+#include <iostream>
+#include <math.h>
+#include <C:/CRAFT/VT_TE_function.h>
+#include <fstream>
+#include <sstream>  
+#include <string> 
+#include <vector>
+#include "arithmetic.h"
+using namespace std;
+#define  site_count  2
+#define PHIF_CONNECT  Plugin.ShmPtr-> PHIF.Connect
+GLOBAL     int  test_time      = 0 ,die_x = 0,die_y = 0;
+           int  test_no        = 0 ;
+           int  debug_mode     = 1 ;
+           int  offline_mode   = 1 ;
+           int  rst_lvl        = 1 ;
+           int  set_lvl        = 2 ; 
+           int  temp_data[8];
+           int pass_flag[site_count] ;
+double voltage_4bit[site_count][256];
+double VBG_VO_CP1[site_count][1024]={0,0};
+double VTC_VO_CP1[site_count][1024]={0,0};      
+       
+int m=0;
+char  wafer_id[40], lot_id[40];
+string lot_idstr; 
+string wafer_idstr;
+string filename;
+ofstream file;
+
+           CURRENT current_VDD_CH1[site_count] ={0,0};
+           CURRENT current_VDD_CH2[site_count] ={0,0};
+           CURRENT current_VDD_CH3[site_count] ={0,0};
+           CURRENT current_VDD_CH4[site_count] ={0,0};
+           CURRENT current_V33_1_4[site_count] ={0,0};
+           CURRENT current_V33_2[site_count] ={0,0};  
+           CURRENT current_V33_3[site_count] ={0,0}; 
+
+           CURRENT current_AVE[site_count] ={0,0};    
+           CURRENT current_MIN[site_count] ={0,0}; 
+           CURRENT current_MAX[site_count] ={0,0}; 
+           CURRENT current_Delta[site_count] ={0,0};  
+HW_BIN_DEF{
+    all_pass                        = 1   ;
+    hw_Open_short_test              =!2   ;
+    hw_Leakage_test                 =!3   ; 
+    hw_Trim_test                    =!4   ;
+
+    fail_last_item                  =!255 ;
+    hw_error_bin                    =!99  ;
+}                                 
+                                  
+SW_BIN_DEF{                       
+    all_pass                        = 1   ;
+    sw_OS_RESET                     =!2   ;
+    sw_V33_0p5V_Leakage             =!14  ; 
+    sw_V33_1V_Leakage               =!15  ; 
+    sw_VBG_TRIM                     =!16  ;
+    sw_VTC_TRIM                     =!17  ;
+    sw_VBG_a_TRIM                   =!18  ;
+    sw_VTC_a_TRIM                   =!19  ;
+    
+    fail_last_item                  =!255 ;
+    hw_error_bin                    =!999 ;
+}
+
+TEST_PRO{
+   BEFORE_TEST:test_start;
+    //test items            ?pass_do                 :fail_dp
+    OS_TEST                 ?                        :#C(hw_Open_short_test         ,   sw_OS_RESET                 );
+    V33_0p5V_Leakage        ?                        :#C(hw_Leakage_test            ,   sw_V33_0p5V_Leakage         );
+    V33_1V_Leakage          ?                        :#C(hw_Leakage_test            ,   sw_V33_1V_Leakage           );
+    VBG_TRIM                ?                        :#C(hw_Trim_test               ,   sw_VBG_TRIM                 );
+    VTC_TRIM                ?                        :#C(hw_Trim_test               ,   sw_VTC_TRIM                 );
+    VBG_a_TRIM              ?                        :#C(hw_Trim_test               ,   sw_VBG_a_TRIM               );
+    VTC_a_TRIM              ?                        :#C(hw_Trim_test               ,   sw_VTC_a_TRIM               );
+     
+    last_item_test          ?#C(all_pass,all_pass)   :#C(fail_last_item             ,   fail_last_item              );
+    AFTER_TEST:test_end;
+}
+
+START_UP(){
+  string device_name="B20041C_LT40C";
+  TestSpec_Fun_Std(device_name);
+       
+  SET_LEVELN(rst_lvl  ,IO_ALLPINS       ,0.00V, 0.00V, 0.00V, 0.00V, 0.0mA, 0.0mA, 0.00V);  
+  SET_LEVELN(set_lvl  ,EN_SET           ,0V   , 3.30V, 0.8V,   1.7V, 0.0mA, 0.0mA, 0.00V);
+  SET_LEVELN(set_lvl  ,spi_pin          ,0V   , 3.30V, 1.7V,   1.8V, 0.0mA, 0.0mA, 0.00V); 
+  LEVELS(rst_lvl,2mS);
+  
+  PIN_MODE(IO_ALLPINS,NRZ,EDGE,ENABLE,IO_NRZ,OFF);
+  FORCE_V_MLDPS(MLDPS_ALLPINS,0V,@6V,@500mA,100mA,NORM,ON,5mS);
+  FORCE_V_MLDPS(MLDPS_ALLPINS,0V,@6V,@500mA,100mA,NORM,OFF,5mS);
+  RELAY_OFF(IO_ALLPINS,ALL,2mS);
+  LOAD_PAT("./PAT/B20041C.ppo"); 
+}
+
+test_start(){
+   SOCKET_INC{
+     for(int i=0;i<1024;i++){
+       VBG_VO_CP1[SOCKET][i]=0;
+       VTC_VO_CP1[SOCKET][i]=0;  
+    //   flow_flag[SOCKET]="PASS";
+     }
+  }
+  for(int i = 0;i<site_count;i++)
+    {
+          pass_flag[i] = 1;
+    }
+    test_no = 0;
+    SHOW_TEST_TIME(test_time) ; 
+    cvs_value.clear(); 
+    
+    READ_WAFER_ID(wafer_id, lot_id) ;  
+    if(offline_mode)
+    {   
+        strcpy(wafer_id,"F67750-21-F5"); 
+        strcpy(lot_id,  "F67750"); 
+    }
+    READ_PROBER_XY(PHIF_X, PHIF_Y);  
+    SOCKET_INC
+    {  
+        if(offline_mode)
+        {  
+        PHIF_X[SOCKET]=die_x ;
+        PHIF_Y[SOCKET]=die_y+ 1*SOCKET ; 
+    
+        printf("PHIF_X[%d]=%d,PHIF_Y[%d]=%d\n",SOCKET,PHIF_X[SOCKET],SOCKET,PHIF_Y[SOCKET]); 
+        fflush(stdout);
+        }
+    }   
+    lot_idstr= lot_id; 
+    wafer_idstr=wafer_id; 
+  //write title  
+    filename=change_local_path2+lot_idstr+"/CP1/"+(lot_idstr+"_"+wafer_idstr+"_CP1.csv"); 
+    ifstream csvFile(filename, ios::in);
+    if(!csvFile){
+        csvFile.close();
+        file.open(filename, ios::app);
+        write_csv(file,lot_idstr,wafer_idstr,delimiter, data); 
+        file << endl;
+    }else{
+        csvFile.close();
+        file.open(filename, ios::app);
+    } 
+  
+  LEVELS(rst_lvl, 5mS);
+  PIN_MODE(IO_ALLPINS, NRZ, EDGE, ENABLE, IO_NRZ, OFF);
+  FORCE_V_MLDPS( MLDPS_ALLPINS,0V,@6V, @500mA, 400mA, NORM, ON, 2mS) ;//200mA    
+  RELAY_OFF(IO_ALLPINS, PDCL, 2mS);    
+  FORCE_V_MLDPS( MLDPS_ALLPINS,0V,@6V, @500mA, 400mA, NORM, OFF, 2mS) ;//200mA  
+}
+
+test_end(){
+  LEVELS(rst_lvl,2mS);
+  PIN_MODE(IO_ALLPINS,NRZ,EDGE,ENABLE,IO_NRZ,OFF);
+  FORCE_V_MLDPS(MLDPS_ALLPINS,0V,@6V,@500mA,100mA,NORM,OFF,2mS);
+  RELAY_OFF(IO_ALLPINS,ALL,2mS);
+}
+
+RELEASE(){
+  LEVELS(rst_lvl,2mS);
+  PIN_MODE(IO_ALLPINS,NRZ,EDGE,ENABLE,IO_NRZ,OFF);
+  FORCE_V_MLDPS(MLDPS_ALLPINS,0V,@6V,@500mA,100mA,NORM,OFF,2mS);
+  RELAY_OFF(IO_ALLPINS,ALL,2mS);
+  //release( );
+}
+
+POWER_DOWN_FAIL_SITE_X(){
+    PIN_MODE(IO_ALLPINS, F0     , EDGE , ENABLE , IO_ON  , OFF ); 
+    LEVELS(rst_lvl, 5mS); 
+    PIN_MODE(IO_ALLPINS, NRZ    , EDGE , ENABLE , IO_NRZ , OFF ); 
+    FORCE_V_MLDPS( MLDPS_ALLPINS,0V,@6V, @25mA, 10mA, NORM, ON, 2mS) ;
+    WAIT(5mS);
+    FORCE_V_MLDPS( MLDPS_ALLPINS,0V,@6V, @500mA, 400mA, NORM, OFF, 2mS) ;//200mA
+    RELAY_OFF(IO_ALLPINS, ALL, 2mS); 
+}
+
+poweron()
+{
+    RELAY_ON(CS+SCLK_IN+SD_IN+SD_OUT+RESET+EN_SET,PDCL,2mS);
+    FORCE_V_MLDPS( V33_dig,3.3V,@6V, @500mA, 300mA, NORM, ON, 5mS) ;
+    LEVELS(set_lvl,3mS);
+    
+    TIME t_write = 1uS;  //1MHz
+    //TIME t_write = 5uS;  //1MHz
+    RATEN(TS1,t_write);
+    MARKERN(TS1,IO_ALLPINS  ,0*t_write    ,            ,    ,0nS   ,   ,0.6*t_write,   );
+    MARKERN(TS1,SCLK_IN     ,0.3*t_write  , 0.8*t_write,    ,0nS   ,   ,0.5*t_write,   );
+    RATEN(TS2,t_write);
+    MARKERN(TS2,SCLK_IN     ,0.3*t_write  , -1         ,    ,0nS   ,   ,0.5*t_write,   );  
+    MARKERN(TS2,CS          ,0.4*t_write  ,            ,    ,0nS   ,   ,0.5*t_write,   ); 
+    MARKERN(TS2,SD_OUT      ,0*t_write    ,            ,    ,0nS   ,   ,0.7*t_write,   );  
+  ////////////////////////////////set////////////////////////////////////////////////////////////  
+    MARKERN(TS1,EN_SET      ,0*t_write    , 0.5*t_write,    ,0nS   ,   ,0.5*t_write,   );
+    MARKERN(TS2,EN_SET      ,0*t_write    ,-1          ,    ,0nS   ,   ,0.5*t_write,   ); 
+
+    PIN_MODE(IO_ALLPINS    ,NRZ,EDGE,ENABLE,IO_NRZ,NORM);
+    PIN_MODE(SCLK_IN+EN_SET,RZ ,EDGE,ENABLE,IO_NRZ,NORM);
+    WAIT(5mS);
+    
+    FORCE_I_MLDPS(TP_MLDPS,2nA,@500mA,@6V,3V,NORM,ON,2mS);
+    FORCE_I_MLDPS(TP_MLDPS,2nA,@25mA ,@6V,3V,NORM,ON,5mS);
+ //   test_no++;  TEST_NO(test_no);  DATALOG_MSG = "mode_operation_spi";
+ //   JUDGE_PAT(mode_operation_spi,__mode_operation_spi);  //
+    TEST_NO(1);DATALOG_MSG = "RESET_PAT";
+    JUDGE_PAT(RESET_PAT,__RESET_PAT);
+ 
+}
+
+poweroff(){
+    PIN_MODE(IO_ALLPINS, F0     , EDGE , ENABLE , IO_ON  , OFF ); 
+    LEVELS(rst_lvl, 5mS); 
+    PIN_MODE(IO_ALLPINS, NRZ    , EDGE , ENABLE , IO_NRZ , OFF ); 
+    FORCE_V_MLDPS( MLDPS_ALLPINS,0V,@6V, @25mA, 10mA, NORM, ON, 2mS) ;
+    WAIT(5mS);
+    FORCE_V_MLDPS( MLDPS_ALLPINS,0V,@6V, @500mA, 400mA, NORM, OFF, 2mS) ;//200mA
+    RELAY_OFF(IO_ALLPINS, ALL, 2mS);    
+}
+
+TIMING_SET(){
+  TIME t_write=1uS;
+  //TIME t_write=5uS;
+
+  RATEN(TS1,t_write);
+  RATEN(TS2,t_write);
+  MARKERN(TS1,IO_ALLPINS  ,0*t_write    ,            ,    ,0nS   ,   ,0.6*t_write,   );
+  MARKERN(TS1,SCLKI       ,0.3*t_write  , 0.8*t_write,    ,0nS   ,   ,0.5*t_write,   );    
+  MARKERN(TS2,SCLKI       ,0.3*t_write  , -1         ,    ,0nS   ,   ,0.5*t_write,   );  
+  MARKERN(TS2,CS          ,0.4*t_write  ,            ,    ,0nS   ,   ,0.5*t_write,   ); 
+  MARKERN(TS2,SDO         ,0*t_write    ,            ,    ,0nS   ,   ,0.7*t_write,   );  
+////////////////////////////////set////////////////////////////////////////////////////////////  
+  MARKERN(TS1,EN_SET      ,0*t_write    , 0.5*t_write,    ,0nS   ,   ,0.5*t_write,   );
+  MARKERN(TS2,EN_SET      ,0*t_write    ,-1          ,    ,0nS   ,   ,0.5*t_write,   ); 
+  
+  PIN_MODE(IO_ALLPINS ,NRZ,EDGE,ENABLE,IO_NRZ,NORM);
+  PIN_MODE(SCLKI+EN_SET,RZ,EDGE,ENABLE,IO_NRZ,NORM);
+}
+
+//===================================VBG VTC TRIM========================
+PGM_TRIM_SCAN(int test_no,string monitor_addr,int register_addr,int register1_bit,int register1_startaddr,int register1_endaddr,int register2_bit,int register2_startaddr,int register2_endaddr)
+{
+    int i,j,m;
+    int addr1_bit = 0;
+    int addr2_bit = 0;
+    int data1 = 0;
+    int data2 = 0;
+    int data1_bit = 0;
+    int data2_bit = 0;
+    
+    int turn_data = register_addr;
+    char pat_start[64],pat_end[64],msg[64],pat_message[64];
+    string label,pat_end_str,pat_test_message;
+
+    memset( pat_start , 0 , sizeof(pat_start));
+    memset( pat_end , 0 , sizeof(pat_end));
+    memset( msg , 0 , sizeof(msg));
+    memset( voltage_4bit , 0 , sizeof(voltage_4bit));
+
+    //turn_data=register_addr;
+/*****************************write addr**************************************************/
+    SOCKET_INC
+    {
+    m = 0;
+    register_addr=turn_data;
+        for( j=0;j<8;j++)
+        {
+            addr1_bit = register_addr & 0x1;
+            register_addr     = (register_addr >> 1);
+            if(addr1_bit == 1)
+            {
+                WRITE_PAT_MEM(SOCKET, SD_IN, TRIM_SCAN:addr1+7-j  , , "1");
+                WRITE_PAT_MEM(SOCKET, SD_IN, R_TRIM_SCAN:addr+7-j , , "1");
+                WRITE_PAT_MEM(SOCKET, SD_IN, R_TRIM_SCAN:addr1+7-j, , "1");
+            }else
+            {    
+                WRITE_PAT_MEM(SOCKET, SD_IN, TRIM_SCAN:addr1+7-j  , , "0");
+                WRITE_PAT_MEM(SOCKET, SD_IN, R_TRIM_SCAN:addr+7-j , , "0");
+                WRITE_PAT_MEM(SOCKET, SD_IN, R_TRIM_SCAN:addr1+7-j, , "0");
+            }
+        //if(debug_mode){printf("SOCKET=%d,register_addr=%d\n",SOCKET,register_addr) ;  fflush(stdout);}   
+        } 
+    register_addr=turn_data;
+/*****************************write data[all 256]**************************************************/
+
+        for( j=register1_startaddr;j< register1_endaddr+1 ;j++)
+        {
+            //DEBUG_BREAK();
+            for( i=register2_startaddr;i< register2_endaddr+1 ;i++)
+            {
+                data1 = j;
+                data2 = i;
+                
+              if(register_addr==0x27 || register_addr==39) {  
+                for (int k = 0;k < register1_bit;k++)
+                {
+                    data1_bit = data1 & 0x1;
+                    data1  = (data1 >> 1);
+                    if(data1_bit == 1)
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN ,   TRIM_SCAN:data1+register1_bit-2-k, , "1");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit-2-k, , "H");
+                    }else
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN ,   TRIM_SCAN:data1+register1_bit-2-k, , "0");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit-2-k, , "L");
+                    } 
+                    //if(debug_mode){printf("SOCKET=%d,data1_bit=%d\n",SOCKET,data1_bit) ;  fflush(stdout);}
+                }
+                for (int k = 0;k < register2_bit;k++)
+                {
+                    data2_bit = data2 & 0x1;
+                    data2  = (data2 >> 1);
+                    if(data2_bit == 1)
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN,    TRIM_SCAN:data1+register1_bit+register2_bit-2-k, , "1");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit+register2_bit-2-k, , "H");
+                    }else
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN,    TRIM_SCAN:data1+register1_bit+register2_bit-2-k, , "0");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit+register2_bit-2-k, , "L");
+                    }
+                    //if(debug_mode){printf("SOCKET=%d,data2_bit=%d\n",SOCKET,data2_bit) ;  fflush(stdout);}
+                }
+              }
+/***********************************register_addr!=0x27********************************************/
+              else{  
+                for (int k = 0;k < register1_bit;k++)
+                {
+                    data1_bit = data1 & 0x1;
+                    data1  = (data1 >> 1);
+                    if(data1_bit == 1)
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN ,   TRIM_SCAN:data1+register1_bit-1-k, , "1");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit-1-k, , "H");
+                    }else
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN ,   TRIM_SCAN:data1+register1_bit-1-k, , "0");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit-1-k, , "L");
+                    } 
+                    //if(debug_mode){printf("SOCKET=%d,data1_bit=%d\n",SOCKET,data1_bit) ;  fflush(stdout);}
+                }
+                for (int k = 0;k < register2_bit;k++)
+                {
+                    data2_bit = data2 & 0x1;
+                    data2  = (data2 >> 1);
+                    if(data2_bit == 1)
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN,    TRIM_SCAN:data1+register1_bit+register2_bit-1-k, , "1");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit+register2_bit-1-k, , "H");
+                    }else
+                    {
+                        WRITE_PAT_MEM(SOCKET, SD_IN,    TRIM_SCAN:data1+register1_bit+register2_bit-1-k, , "0");
+                        WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1+register1_bit+register2_bit-1-k, , "L");
+                    }
+                    //if(debug_mode){printf("SOCKET=%d,data2_bit=%d\n",SOCKET,data2_bit) ;  fflush(stdout);}
+                }
+              }
+                if(debug_mode){printf("register_addr=%d,j=%d ,i = %d\n",register_addr,j,i) ;  fflush(stdout);}
+                TEST_NO(test_no);
+                test_no++;
+                DATALOG_MSG = "TRIM_SCAN";
+                JUDGE_PAT(TRIM_SCAN,__TRIM_SCAN);
+                
+                TEST_NO(test_no);
+                test_no++;
+                DATALOG_MSG = "R_TRIM_SCAN";
+                JUDGE_PAT(R_TRIM_SCAN,__R_TRIM_SCAN);
+                
+                strcpy(pat_start,monitor_addr.c_str());
+                pat_end_str="__";
+                pat_end_str.append(monitor_addr);       
+                strcpy(pat_end,pat_end_str.c_str());
+                //create data datalog message print to stdf(csv)
+                pat_test_message= monitor_addr;
+    /*          
+                label = "EN_SET_";
+                label.append(monitor_addr); 
+                strcpy(pat_start,label.c_str());
+                pat_end_str="__";
+                pat_end_str.append(label);       
+                strcpy(pat_end,pat_end_str.c_str());
+                //create data datalog message print to stdf(csv)
+                pat_test_message=label; 
+     */
+                pat_test_message.append("_Pattern");
+                strcpy(pat_message,pat_test_message.c_str());
+                TEST_NO(test_no);
+                test_no++;
+                DATALOG_MSG=pat_message;
+   
+                JUDGE_PAT(S:pat_start,S:pat_end);
+/*                
+                 PIN_INC(TP)
+                {
+                  RELAY_ON (PIN_DEF, PMU, 1mS);
+                  FORCE_I_PMU(PMU,0uA,@1mA,@6V,3V,ON,3mS);
+  //                t = m + n;
+ //                 TEST_NO(test_no);
+ //                 test_no++;
+ //                 sprintf(msg, "TP_MEAS_%dH_%d", register_addr , m);
+                  DATALOG_MSG = "TP_MEAS  ";
+                  MEAS_V_PMU (PMU, IFVM, 1mS, 16, AVE, 50uS);
+                  voltage_4bit[SOCKET][m] = RESULT_PIN(SOCKET,TP);
+                 // TEST_NO(test_no);
+                //   test_no++;
+                   if(debug_mode){printf("SOCKET=%d,TP_MLDPS voltage:=%f\n",SOCKET,voltage_4bit[SOCKET][m]) ;  fflush(stdout);}
+                //  JUDGE_VARIABLE (SOCKET, voltage_4bit[SOCKET][m], limit_spec_min[m+n]*1V, limit_spec_max[m+n]*1V, pat_message);
+  
+                  FORCE_I_PMU(PMU,0uA,@1mA,@6V,3V,OFF,3mS);
+                  RELAY_OFF(PIN_DEF,PMU,1mS);
+                }
+*/                
+                WAIT(3mS);
+                test_no++; 
+                TEST_NO(test_no);  
+                DATALOG_MSG="TRIM_0-15";            
+                MEAS_V_MLDPS(TP_MLDPS, 1mS, 16, AVE, 10uS);
+                SOCKET_INC{
+                  voltage_4bit[SOCKET][m]=RESULT_MLDPS(SOCKET, TP_MLDPS);
+                  if(debug_mode){printf("SOCKET=%d,TP_MLDPS voltage:=%f\n",SOCKET,voltage_4bit[SOCKET][m]) ;  fflush(stdout);} 
+                } 
+          
+                m++;
+            }
+        }
+        for (int k = 0;k < 16;k++)
+        {
+            WRITE_PAT_MEM(SOCKET, SD_IN ,   TRIM_SCAN:data1-6+k, , "0");
+            WRITE_PAT_MEM(SOCKET, SD_OUT, R_TRIM_SCAN:data1-6+k, , "L");
+        }   
+    }
+}              
+
+/////////////////////////////////////////////////////////////////////
+//                        Main Flow                                //
+/////////////////////////////////////////////////////////////////////
+//****************OS_TEST:all pins FI=-100uA ***********//
+OS_TEST(){
+  RELAY_ON(os_pin ,PPMU,2mS);//connect io pins      
+  FORCE_V_MLDPS(MLDPS_ALLPINS-TP_MLDPS-VFS_MLDPS ,0.0V,@6V,@500mA, 100mA, NORM, ON, 2mS);    //6v,12v;5ua,25ua,250ua,2.5ma,25ma,500ma,1a                               
+  FORCE_V_MLDPS(MLDPS_ALLPINS-TP_MLDPS-VFS_MLDPS ,0.0V,@6V, @25mA,  25mA, NORM, ON, 2mS);
+  FORCE_I_PPMU(os_pin , -0.1mA, @2mA, ,2V, -2V ,5mS);//force i=-0.5mA  //2ua,20ua,200ua,2ma,32ma;voltage clamp
+  WAIT(5mS);
+  
+  test_no=1;    TEST_NO(test_no);    DATALOG_MSG="TP+SCLKO_negative";
+  JUDGE_V_PPMU(TP+SCLKO , limit_spec_min[1]*1V, limit_spec_max[1]*1V , 2mS, 16, AVE, 20uS, , );  
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="EN_SET_negative";
+  JUDGE_V_PPMU(EN_SET   , limit_spec_min[2]*1V, limit_spec_max[2]*1V , 2mS, 16, AVE, 20uS, , );  
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="RST+CS+SDI+SCLKI+LD+TRT+TRR_negative";
+  JUDGE_V_PPMU(RST+CS+SDI+SCLKI+LD+TRT+TRR , limit_spec_min[3]*1V, limit_spec_max[3]*1V , 2mS, 16, AVE, 20uS, , ); 
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="VFS_negative";
+  JUDGE_V_PPMU(VFS      , limit_spec_min[4]*1V, limit_spec_max[4]*1V , 2mS, 16, AVE, 20uS, , ); 
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="SDO_negative";
+  JUDGE_V_PPMU(SDO      , limit_spec_min[5]*1V, limit_spec_max[5]*1V , 2mS, 16, AVE, 20uS, , ); 
+  
+  
+  FORCE_I_PPMU(os_pin-VFS , 0.1mA, @2mA, ,2V, -2V ,5mS);//force i=-0.5mA  //2ua,20ua,200ua,2ma,32ma;voltage clamp
+  WAIT(5mS);
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="TP+SCLKO_postive";
+  JUDGE_V_PPMU(TP+SCLKO   , limit_spec_min[6]*1V, limit_spec_max[6]*1V , 2mS, 16, AVE, 20uS, , ); 
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="EN_SET+RST_postive";
+  JUDGE_V_PPMU(EN_SET+RST , limit_spec_min[7]*1V, limit_spec_max[7]*1V , 2mS, 16, AVE, 20uS, , ); 
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="CS+SDI+SCLKI+LD+TRT+TRR_postive";
+  JUDGE_V_PPMU(CS+SDI+SCLKI+LD+TRT+TRR , limit_spec_min[8]*1V, limit_spec_max[8]*1V , 2mS, 16, AVE, 20uS, , ); 
+  test_no++;    TEST_NO(test_no);    DATALOG_MSG="SDO_postive";
+  JUDGE_V_PPMU(SDO        , limit_spec_min[9]*1V, limit_spec_max[9]*1V , 2mS, 16, AVE, 20uS, , ); 
+  
+  FORCE_I_PPMU(os_pin , 0uA, @2mA, ,2V, -2V ,2mS); //GND   //2ua,20ua,200ua,2ma,32ma;voltage clamp    
+  FORCE_V_PPMU(os_pin , 0V, ,@2mA, , 2mS);         //GND   //2ua,20ua,200ua,2ma,32ma;no current clamp                                 
+  FORCE_V_MLDPS(MLDPS_ALLPINS-TP_MLDPS-VFS_MLDPS  , 0.00V, @6V, @500mA, 100mA, NORM, ON, 2mS);    //6v,12v;5ua,25ua,250ua,2.5ma,25ma,500ma,1a     
+  RELAY_OFF(os_pin ,PPMU,2mS); 
+  FORCE_V_MLDPS(MLDPS_ALLPINS-TP_MLDPS-VFS_MLDPS  , 0.00V, @6V, @500mA, 100mA, NORM, OFF, 2mS);    //6v,12v;5ua,25ua,250ua,2.5ma,25ma,500ma,1a 
+}
+
+V33_0p5V_Leakage(){
+//****************CONTINUTY:all pins FI=-100uA ***********//
+  test_no=20;    TEST_NO(test_no);    DATALOG_MSG="V33_0p5V_Leakage";
+  FORCE_V_MLDPS(V33_dig ,0.0V,@6V,@500mA, 100mA, NORM, ON, 2mS);        
+  
+  FORCE_V_MLDPS(VDD_CH1 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH1, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH1, current_VDD_CH1);
+  FORCE_V_MLDPS(VDD_CH1 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH1 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);        
+
+  FORCE_V_MLDPS(VDD_CH2 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH2, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH2, current_VDD_CH2);
+  FORCE_V_MLDPS(VDD_CH2 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH2 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+
+  FORCE_V_MLDPS(VDD_CH3 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH3, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH3, current_VDD_CH3);
+  FORCE_V_MLDPS(VDD_CH3 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH3 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(VDD_CH4 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH4, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH4, current_VDD_CH4);
+  FORCE_V_MLDPS(VDD_CH4 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH4 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(V33_1_4 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(V33_1_4, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(V33_1_4, current_V33_1_4);
+  FORCE_V_MLDPS(V33_1_4 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(V33_1_4 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(V33_2 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(V33_2, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(V33_2, current_V33_2);
+  FORCE_V_MLDPS(V33_2 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(V33_2 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(V33_3 ,0.5V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(V33_3, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(V33_3, current_V33_3);
+  FORCE_V_MLDPS(V33_3 ,0.0V,@6V,@2.5mA,   2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(V33_3 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  SOCKET_INC(FRZ_OFF){
+    current_MAX[SOCKET] = current_VDD_CH1[SOCKET];
+      if(current_MAX[SOCKET] < current_VDD_CH2[SOCKET])  current_MAX[SOCKET] = current_VDD_CH2[SOCKET];
+      if(current_MAX[SOCKET] < current_VDD_CH3[SOCKET])  current_MAX[SOCKET] = current_VDD_CH3[SOCKET];
+      if(current_MAX[SOCKET] < current_VDD_CH4[SOCKET])  current_MAX[SOCKET] = current_VDD_CH4[SOCKET];
+      if(current_MAX[SOCKET] < current_V33_1_4[SOCKET])  current_MAX[SOCKET] = current_V33_1_4[SOCKET];
+      if(current_MAX[SOCKET] < current_V33_2[SOCKET])    current_MAX[SOCKET] = current_V33_2[SOCKET];
+      if(current_MAX[SOCKET] < current_V33_3[SOCKET])    current_MAX[SOCKET] = current_V33_3[SOCKET];
+    current_MIN[SOCKET] = current_VDD_CH1[SOCKET];
+      if(current_MIN[SOCKET] > current_VDD_CH2[SOCKET])  current_MIN[SOCKET] = current_VDD_CH2[SOCKET];
+      if(current_MIN[SOCKET] > current_VDD_CH3[SOCKET])  current_MIN[SOCKET] = current_VDD_CH3[SOCKET];
+      if(current_MIN[SOCKET] > current_VDD_CH4[SOCKET])  current_MIN[SOCKET] = current_VDD_CH4[SOCKET];
+      if(current_MIN[SOCKET] > current_V33_1_4[SOCKET])  current_MIN[SOCKET] = current_V33_1_4[SOCKET];
+      if(current_MIN[SOCKET] > current_V33_2[SOCKET])    current_MIN[SOCKET] = current_V33_2[SOCKET];
+      if(current_MIN[SOCKET] > current_V33_3[SOCKET])    current_MIN[SOCKET] = current_V33_3[SOCKET];
+      
+    current_Delta[SOCKET]=current_MAX[SOCKET]-current_MIN[SOCKET];
+    current_AVE[SOCKET]=(current_VDD_CH1[SOCKET]+current_VDD_CH2[SOCKET]+current_VDD_CH3[SOCKET]+current_VDD_CH4[SOCKET]+current_V33_1_4[SOCKET]+current_V33_2[SOCKET]+current_V33_3[SOCKET])/7;
+  test_no=200;  TEST_NO(test_no);  DATALOG_MSG="current_Delta_0p5V";
+  JUDGE_VARIABLE (SOCKET, current_Delta[SOCKET], limit_spec_min[10]*1A, limit_spec_max[10]*1A,"current_Delta_0p5V"); 
+  test_no=201;  TEST_NO(test_no);  DATALOG_MSG="current_AVE_0p5V";
+  JUDGE_VARIABLE (SOCKET, current_AVE[SOCKET], limit_spec_min[10]*1A, limit_spec_max[10]*1A,"current_AVE_0p5V"); 
+  }
+  FORCE_V_MLDPS(MLDPS_ALLPINS  , 0.00V, @6V, @500mA, 100mA, NORM, OFF, 2mS);    //6v,12v;5ua,25ua,250ua,2.5ma,25ma,500ma,1a 
+}
+
+V33_1V_Leakage(){
+//****************CONTINUTY:all pins FI=-100uA ***********//
+  test_no=20;    TEST_NO(test_no);    DATALOG_MSG="V33_0p5V_Leakage";
+  FORCE_V_MLDPS(V33_dig ,0.0V,@6V,@500mA, 100mA, NORM, ON, 2mS);        
+  
+  FORCE_V_MLDPS(VDD_CH1 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH1, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH1, current_VDD_CH1);
+  FORCE_V_MLDPS(VDD_CH1 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH1 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);        
+
+  FORCE_V_MLDPS(VDD_CH2 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH2, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH2, current_VDD_CH2);
+  FORCE_V_MLDPS(VDD_CH2 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH2 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+
+  FORCE_V_MLDPS(VDD_CH3 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH3, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH3, current_VDD_CH3);
+  FORCE_V_MLDPS(VDD_CH3 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH3 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(VDD_CH4 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(VDD_CH4, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(VDD_CH4, current_VDD_CH4);
+  FORCE_V_MLDPS(VDD_CH4 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(VDD_CH4 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(V33_1_4 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(V33_1_4, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(V33_1_4, current_V33_1_4);
+  FORCE_V_MLDPS(V33_1_4 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(V33_1_4 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(V33_2 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(V33_2, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(V33_2, current_V33_2);
+  FORCE_V_MLDPS(V33_2 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(V33_2 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  FORCE_V_MLDPS(V33_3 ,1.0V,@6V,@2.5mA, 2mA, NORM, ON, 2mS);        
+  MEAS_I_MLDPS(V33_3, 1mS, 8, AVE, 10uS);  
+  RESULT_MLDPS_MS(V33_3, current_V33_3);
+  FORCE_V_MLDPS(V33_3 ,0.0V,@6V,@2.5mA, 2mA, NORM, ON , 2mS);        
+  FORCE_V_MLDPS(V33_3 ,0.0V,@6V,@500mA, 200mA, NORM, OFF, 2mS);  
+  
+  SOCKET_INC(FRZ_OFF){
+    current_MAX[SOCKET] = current_VDD_CH1[SOCKET];
+      if(current_MAX[SOCKET] < current_VDD_CH2[SOCKET])  current_MAX[SOCKET] = current_VDD_CH2[SOCKET];
+      if(current_MAX[SOCKET] < current_VDD_CH3[SOCKET])  current_MAX[SOCKET] = current_VDD_CH3[SOCKET];
+      if(current_MAX[SOCKET] < current_VDD_CH4[SOCKET])  current_MAX[SOCKET] = current_VDD_CH4[SOCKET];
+      if(current_MAX[SOCKET] < current_V33_1_4[SOCKET])  current_MAX[SOCKET] = current_V33_1_4[SOCKET];
+      if(current_MAX[SOCKET] < current_V33_2[SOCKET])    current_MAX[SOCKET] = current_V33_2[SOCKET];
+      if(current_MAX[SOCKET] < current_V33_3[SOCKET])    current_MAX[SOCKET] = current_V33_3[SOCKET];
+    current_MIN[SOCKET] = current_VDD_CH1[SOCKET];
+      if(current_MIN[SOCKET] > current_VDD_CH2[SOCKET])  current_MIN[SOCKET] = current_VDD_CH2[SOCKET];
+      if(current_MIN[SOCKET] > current_VDD_CH3[SOCKET])  current_MIN[SOCKET] = current_VDD_CH3[SOCKET];
+      if(current_MIN[SOCKET] > current_VDD_CH4[SOCKET])  current_MIN[SOCKET] = current_VDD_CH4[SOCKET];
+      if(current_MIN[SOCKET] > current_V33_1_4[SOCKET])  current_MIN[SOCKET] = current_V33_1_4[SOCKET];
+      if(current_MIN[SOCKET] > current_V33_2[SOCKET])    current_MIN[SOCKET] = current_V33_2[SOCKET];
+      if(current_MIN[SOCKET] > current_V33_3[SOCKET])    current_MIN[SOCKET] = current_V33_3[SOCKET];
+      
+    current_Delta[SOCKET]=current_MAX[SOCKET]-current_MIN[SOCKET];
+    current_AVE[SOCKET]=(current_VDD_CH1[SOCKET]+current_VDD_CH2[SOCKET]+current_VDD_CH3[SOCKET]+current_VDD_CH4[SOCKET]+current_V33_1_4[SOCKET]+current_V33_2[SOCKET]+current_V33_3[SOCKET])/7;
+
+  test_no=202;  TEST_NO(test_no);  DATALOG_MSG="current_Delta_1V";
+  JUDGE_VARIABLE (SOCKET, current_Delta[SOCKET], limit_spec_min[10]*1A, limit_spec_max[10]*1A,"current_Delta_1V"); 
+  test_no=203;  TEST_NO(test_no);  DATALOG_MSG="current_AVE_1V";
+  JUDGE_VARIABLE (SOCKET, current_AVE[SOCKET], limit_spec_min[10]*1A, limit_spec_max[10]*1A,"current_AVE_1V"); 
+  }
+  FORCE_V_MLDPS(MLDPS_ALLPINS  , 0.00V, @6V, @500mA, 100mA, NORM, OFF, 2mS);    //6v,12v;5ua,25ua,250ua,2.5ma,25ma,500ma,1a 
+}
+
+
+VBG_TRIM(){
+  poweron();
+  WAIT(10mS);
+  ////==========================>TEMP_CODE.... 
+  int read_temp_data[site_count][8]={0};
+  int read_temp_check[site_count]={0};
+  test_no++;  TEST_NO(test_no);  DATALOG_MSG="read_temp_check";
+  SET_CAPTURE_MEM_MODE(SD_OUT, PEL_K, ON, 8K);     
+  JUDGE_PAT(R_0_a0x002,__R_0_a0x002);  
+  SOCKET_INC(FRZ_OFF){
+    READ_CAPTURE_MEM_BLOCK(SOCKET, SD_OUT, 0,7, read_temp_data[SOCKET]);//read result  
+    for(int k=0;k<8;k++){
+      read_temp_check[SOCKET]+=read_temp_data[SOCKET][k]*pow(2,7-k);
+      if(debug_mode){printf("read_temp_data[%d][%d]=%d\n",SOCKET, k,read_temp_data[SOCKET][k]) ;  fflush(stdout);}
+    }
+    JUDGE_VARIABLE (SOCKET, read_temp_check[SOCKET], 0, 256 ,"read_temp_check");        
+  }    
+  SET_CAPTURE_MEM_MODE(SD_OUT, PEL_K, OFF, 8K);  
+  
+  ////==========================>VBG_dig_init
+  FORCE_I_MLDPS(TP_MLDPS,0uA,@500mA,@6V,3V,NORM,ON,2mS);  
+  test_no=50,  TEST_NO(test_no);    DATALOG_MSG="H087_pattern";
+  JUDGE_PAT(H087,__H087);//H087
+  WAIT(5mS);  
+  FORCE_I_MLDPS(TP_MLDPS,0uA,@25mA,@6V,3V,NORM,ON,2mS);
+  test_no++;    TEST_NO(test_no);   DATALOG_MSG="VBG_init";      
+  JUDGE_V_MLDPS(TP_MLDPS, 0V, 1.8V, 2mS ); 
+  
+  ////=========================>VTC_dig_init 
+  test_no++;   TEST_NO(test_no);    DATALOG_MSG="H086_pattern";
+  JUDGE_PAT(H086,__H086); //H086 
+  WAIT(5mS);
+  test_no++; TEST_NO(test_no);  DATALOG_MSG="VTC_init";   
+  JUDGE_V_MLDPS(TP_MLDPS, 0V, 1.8V, 2mS ); 
+  
+  ////==========================>VBG_analog_init 
+  test_no=50,  TEST_NO(test_no);    DATALOG_MSG="H08C_pattern";
+  JUDGE_PAT(H08C,__H08C);//H08C
+  WAIT(5mS);  
+  test_no++;    TEST_NO(test_no);   DATALOG_MSG="VBG_a_init";      
+  JUDGE_V_MLDPS(TP_MLDPS, 0V, 2.8V, 2mS ); 
+  
+  ////=========================>VTC_analog_init
+  test_no++;   TEST_NO(test_no);    DATALOG_MSG="H08B_pattern";
+  JUDGE_PAT(H08B,__H08B); //H08B 
+  WAIT(5mS);
+  test_no++; TEST_NO(test_no);  DATALOG_MSG="VTC_a_init";   
+  JUDGE_V_MLDPS(TP_MLDPS, 0V, 1.8V, 2mS ); 
+  
+  
+  /*test_no++;   TEST_NO(test_no);    DATALOG_MSG="WR_024H";
+  JUDGE_PAT(WR_024H,__WR_024H); //H08B 
+  test_no++;  TEST_NO(test_no);  DATALOG_MSG="TRIM_024H";
+  JUDGE_V_MLDPS (TP_MLDPS, 0.0V, 1.8V, 2mS, 32, AVE, 50uS, , );*/
+
+  PGM_TRIM_SCAN(400 , "H087",0x24,4,0,15,4,0,15);
+  for(int s=0;s<256;s++){
+    SOCKET_INC{     
+      VBG_VO_CP1[SOCKET][s]=voltage_4bit[SOCKET][s];
+      if(debug_mode){printf("s=%d,TRIM_VBG_SCAN[%d][%d]=%f\n",s,SOCKET,s,voltage_4bit[SOCKET][s]) ;  fflush(stdout);}   
+      test_no++; TEST_NO(test_no);  DATALOG_MSG="TRIM_VBG_SCAN";   
+      JUDGE_VARIABLE (SOCKET,VBG_VO_CP1[SOCKET][s],  0V, 2V,"TRIM_VBG_SCAN");
+      if(JUDGE_RESULT_MS[SOCKET]==FAIL) pass_flag[SOCKET] = 0;
+    } 
+  }
+  poweroff();
+}
+
+
+VTC_TRIM(){
+  poweron();
+  PGM_TRIM_SCAN(test_no , "H086",0x24,4,0,15,4,0,15);
+  printf("VTC_TRIM\n");fflush(stdout);
+  
+  int t=256;  
+  for(int s=0;s<256;s++){
+    SOCKET_INC{     
+      VTC_VO_CP1[SOCKET][t]=voltage_4bit[SOCKET][s];
+      if(debug_mode){printf("s=%d,TRIM_VTC_SCAN[%d][%d]=%f\n",s,SOCKET,t,voltage_4bit[SOCKET][s]) ;  fflush(stdout);}   
+      test_no++; TEST_NO(test_no);  DATALOG_MSG="TRIM_VTC_SCAN";   
+      JUDGE_VARIABLE (SOCKET,VTC_VO_CP1[SOCKET][t],  0V, 2V,"TRIM_VTC_SCAN"); 
+      if(JUDGE_RESULT_MS[SOCKET]==FAIL) pass_flag[SOCKET] = 0;
+    } 
+  t++;
+  //t<512;
+  }
+  poweroff();
+}
+ 
+VBG_a_TRIM(){
+    poweron();
+    PGM_TRIM_SCAN(test_no , "H08C",0x27 ,4,0,15,4,0,15);
+    printf("VBG_a_TRIM\n");fflush(stdout);
+    
+  /*for(int s=0;s<256;s++){
+    SOCKET_INC{     
+      VBG_VO_CP1[SOCKET][s]=voltage_4bit[SOCKET][s];
+      if(debug_mode){printf("s=%d,TRIM_VBG_analog[%d][%d]=%f\n",s,SOCKET,s,voltage_4bit[SOCKET][s]) ;  fflush(stdout);}   
+      test_no++; TEST_NO(test_no);  DATALOG_MSG="TRIM_VBG_analog";   
+      JUDGE_VARIABLE (SOCKET,VBG_VO_CP1[SOCKET][s],  0V, 2V,"TRIM_VBG_analog"); 
+    } 
+  }*/
+  
+  int t=512;  
+  for(int s=0;s<256;s++){
+    SOCKET_INC{     
+      VBG_VO_CP1[SOCKET][t]=voltage_4bit[SOCKET][s];
+      if(debug_mode){printf("s=%d,TRIM_VBG_SCAN[%d][%d]=%f\n",s,SOCKET,t,voltage_4bit[SOCKET][s]) ;  fflush(stdout);}   
+      test_no++; TEST_NO(test_no);  DATALOG_MSG="TRIM_VBG_SCAN";   
+      JUDGE_VARIABLE (SOCKET,VBG_VO_CP1[SOCKET][t],  0V, 2V,"TRIM_VBG_SCAN"); 
+      if(JUDGE_RESULT_MS[SOCKET]==FAIL) pass_flag[SOCKET] = 0;
+    } 
+  t++;
+  //s<768;
+  }
+    poweroff();
+}
+
+VTC_a_TRIM(){
+    poweron();
+    PGM_TRIM_SCAN(test_no , "H08B",0x27,4,0,15,4,0,15);
+    printf("VTC_a_TRIM\n");fflush(stdout);
+      
+  int t=768;  
+  for(int s=0;s<256;s++){
+    SOCKET_INC{     
+      VTC_VO_CP1[SOCKET][t]=voltage_4bit[SOCKET][s];
+      if(debug_mode){printf("s=%d,TRIM_VTC_SCAN[%d][%d]=%f\n",s,SOCKET,t,voltage_4bit[SOCKET][s]) ;  fflush(stdout);}   
+      test_no++; TEST_NO(test_no);  DATALOG_MSG="TRIM_VTC_SCAN";   
+      JUDGE_VARIABLE (SOCKET,VTC_VO_CP1[SOCKET][t],  0V, 2V,"TRIM_VTC_SCAN");
+      if(JUDGE_RESULT_MS[SOCKET]==FAIL) pass_flag[SOCKET] = 0;
+    } 
+  t++;
+  //s<1024;
+  
+  }
+    SOCKET_INC{
+    vector<string> row; 
+    row.push_back(to_string(PHIF_X[SOCKET]));
+    row.push_back(to_string(PHIF_Y[SOCKET]));
+      for(int j=0;j<1024;j++){
+        if     (j<256){row.push_back(to_string(VBG_VO_CP1[SOCKET][j]));}
+        else if(j<512){row.push_back(to_string(VTC_VO_CP1[SOCKET][j]));}
+        else if(j<768){row.push_back(to_string(VBG_VO_CP1[SOCKET][j]));}
+        else          {row.push_back(to_string(VTC_VO_CP1[SOCKET][j]));}
+      
+      }
+      cvs_value.clear();
+      cvs_value.push_back(row);  
+      if(pass_flag[SOCKET] == 1)
+      {
+        write_csv(file,lot_idstr,wafer_idstr,delimiter, cvs_value);
+        file << endl;  
+      }else
+      {
+        cvs_value.clear();
+      }
+    } 
+    file.close();
+    poweroff();
+}
+
+last_item_test(){
+   printf("last item test finished !!\n");
+   fflush(stdout);
+}

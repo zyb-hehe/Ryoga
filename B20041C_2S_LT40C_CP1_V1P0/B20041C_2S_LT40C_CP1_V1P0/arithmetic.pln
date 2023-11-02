@@ -1,0 +1,221 @@
+#include "arithmetic.h"
+
+void connect_ftp(std::string lot_str,std::string ftp_mode) {
+  string FTP_Path="\n    remote_path = '/B20041C/"+(lot_str+"/CP1'\n");
+  string local_path= change_local_path1+(lot_str + "/CP1'");
+  string data_path = "\n    local_path ="+local_path;
+  
+  FILE *ftp_file =NULL;
+  ftp_file=fopen("..\\flag.txt","w");
+  fclose(ftp_file);
+  WAIT(50mS);
+  FILE *fp =NULL;
+  fp=fopen("..\\ftp.py","w");
+  if (fp!=NULL) {
+      fprintf(fp, "import os");
+      fprintf(fp, "\nimport time");      
+      fprintf(fp, "\nimport ftplib");      
+      fprintf(fp, "\nimport subprocess");               
+      fprintf(fp, "\nftp = ftplib.FTP()");
+      fprintf(fp, "\nftp.timeout = 5");  
+      
+      fprintf(fp, "\ntry:");     
+      fprintf(fp, "\n    ftp.connect('195.170.13.230', 21)");
+      fprintf(fp, "\n    ftp.login('AQV', 'jb8yNC5e9x9Sq6r')");
+      fprintf(fp, "\n    flag=1");      
+      fprintf(fp, "\nexcept ftplib.all_errors as e:");
+      fprintf(fp, "\n    flag=0");
+      fprintf(fp, "\n    print('Connect to FTP Fail !!!')"); 
+
+      ///////////////
+      fprintf(fp, "\nif flag==1:"); 
+      fprintf(fp, "\n    print('Connected to FTP server')"); 
+      fprintf(fp, "\n    with open(os.path.join(os.getcwd(), 'flag.txt'), 'w') as f:"); 
+      fprintf(fp, "\n        f.write(str(1))");  
+      fprintf(fp, FTP_Path.c_str());
+      fprintf(fp, data_path.c_str());
+      if(ftp_mode=="up" || ftp_mode=="Up" || ftp_mode=="UP"){
+        fprintf(fp, "\n    if remote_path not in ftp.nlst():");
+        fprintf(fp, "\n        folders = remote_path.strip(\"/\").split(\"/\")");
+        fprintf(fp, "\n        for folder in folders:");
+        fprintf(fp, "\n            try:ftp.cwd(folder)");
+        fprintf(fp, "\n            except:ftp.mkd(folder);ftp.cwd(folder)");
+        fprintf(fp, "\n    for file in os.listdir(local_path):");//local_path
+        fprintf(fp, "\n        if file.endswith('.csv'):");
+        fprintf(fp, "\n            with open(os.path.join(local_path, file), 'rb') as f:");
+        fprintf(fp, "\n                ftp.storbinary('STOR ' + file, f)");
+        fprintf(fp, "\n                print('Uploaded file:', file)"); 
+      }
+      else if(ftp_mode=="down" || ftp_mode=="Down" || ftp_mode=="DOWN"){
+        fprintf(fp, "\n    ftp.cwd(remote_path)");
+        fprintf(fp, "\n    if not os.path.exists(local_path):");
+        fprintf(fp, "\n        os.makedirs(local_path)");
+        fprintf(fp, "\n    for file in ftp.nlst():");
+        fprintf(fp, "\n        if file.endswith('.csv'):");
+        fprintf(fp, "\n            with open(os.path.join(local_path, file), 'wb') as f:");       
+        fprintf(fp, "\n                ftp.retrbinary('RETR ' + file, f.write)"); 
+        fprintf(fp, "\n                print('Downloaded file:', file)"); 
+      }
+      fprintf(fp, "\nelse:"); 
+      fprintf(fp, "\n    with open(os.path.join(os.getcwd(), 'flag.txt'), 'w') as f:"); 
+      fprintf(fp, "\n        f.write(str(0))"); 
+
+      fprintf(fp, "\nftp.quit()");        
+      fprintf(fp, "\nos.remove(os.path.abspath(__file__))"); 
+      fclose(fp);
+      WAIT(50mS);
+      cout << "Data transmission in progress, please be patient..." << endl;
+      
+      string py_path="cmd /c python ";
+      char buffer[MAX_PATH];
+      GetCurrentDirectory(MAX_PATH,buffer);
+      std::string path(buffer);
+      size_t pos = path.find_last_of("\\/"); 
+      if (pos != std::string::npos) {
+          path = path.substr(0, pos); 
+      }
+      py_path=py_path+path+"\\ftp.py";
+      //cout << py_path << endl;
+      system(py_path.c_str());
+      cout << "done!" << endl;
+      WAIT(50mS);
+      
+      /************************************************************************************************************************************/
+      std::ifstream file("..\\flag.txt");
+      if (file.is_open()) {
+          std::string line;
+          std::getline(file, line);
+          if (line == "0") {
+            MessageBoxA(NULL,"FTP Connect Fail,program will be aborted,Please comfirm!","Shanghai V-Test Semiconductor Co.,Ltd.", MB_OK + 16); 
+            ABORT_TEST_PLN();
+          } 
+          else if (line == "1") {
+              std::cout << "FTP Connect succeed" << std::endl;
+          } 
+          file.close();
+      } 
+      else {
+          MessageBoxA(NULL,"Unable to open file flag.txt.,Please comfirm!","Shanghai V-Test Semiconductor Co.,Ltd.", MB_OK + 16); 
+          ABORT_TEST_PLN();
+      }
+  }
+  else{
+      MessageBoxA(NULL,"can not creat ftp.py file,Please comfirm!","Shanghai V-Test Semiconductor Co.,Ltd.", MB_OK + 16); 
+      ABORT_TEST_PLN();
+  }
+}
+
+
+void write_csv(ofstream& file,string lot_id,string wafer_id, char delimiter, vector<vector<string>> data) { 
+  for (vector<string> row : data) 
+  {
+    for (int i = 0; i < row.size(); i++)
+    {
+      file << row[i];
+      if (i != row.size() - 1) 
+      {
+        file << delimiter;
+      }
+    }
+    file << delimiter;
+  }
+}
+
+/*void read_csv(string lot_id1){
+  char file_n[255];
+  cout << "lot_id1: " << lot_id1 << endl; // 
+  const char* charArray = lot_id1.c_str();  
+  sprintf_s(file_n, "D:/AQV_B20072/B20072/%s/CP1/B20072F_G3A_%s_AMP_Load_Trim_Phase3.csv",charArray,charArray);
+  ifstream inFile;
+  inFile.open(file_n, ios::in);
+  if (inFile.is_open()){
+   cout << "n "<< endl; //  
+  }
+
+  string line;
+  vector<vector<string>>cus_data;  
+  while (getline(inFile, line)) {
+    stringstream ss(line);
+    vector<string> row;
+    string value;
+    while (getline(ss, value, ',')) {
+        row.push_back(value);
+    }
+    cus_data.push_back(row);
+  }
+  
+  string wafer_1 = wafer_id;
+  string wafer_no = wafer_1.substr(wafer_1.length() - 4, 2);  //get wafer number
+  cout << "wafer_id: " << wafer_no << endl; //
+
+  int n=stod(wafer_no)+2;   //confirm location
+  cout << "n: " << n<< endl; //  
+  if(cus_data[2][n]==" ") cus_data[2][n]="0";
+  cout << "waferinfo: " << cus_data[2][n] << endl; //
+  if(cus_data[2][n]==wafer_id){   //Confirm that the number of wafer read by prober is consistent with that in csv
+//reg cus_data
+    COMM_Reg36 = stod(cus_data[3+1][n]);
+    COMM_Reg37 = stod(cus_data[4+1][n]);
+    COMM_Reg21 = stod(cus_data[5+1][n]);
+    COMM_Reg22 = stod(cus_data[6+1][n]);
+    COMM_Reg23 = stod(cus_data[7+1][n]);
+    COMM_Reg24 = stod(cus_data[8+1][n]);
+    COMM_Reg25 = stod(cus_data[9+1][n]);
+    COMM_Reg26 = stod(cus_data[10+1][n]); 
+    COMM_Reg27 = stod(cus_data[11+1][n]);
+    COMM_Reg38 = stod(cus_data[12+1][n]);
+    COMM_Reg39 = stod(cus_data[13+1][n]);
+    COMM_Reg40 = stod(cus_data[14+1][n]);
+    COMM_Reg41 = stod(cus_data[15+1][n]);
+    COMM_Reg42 = stod(cus_data[16+1][n]);
+    COMM_Reg43 = stod(cus_data[17+1][n]);
+    COMM_Reg44 = stod(cus_data[18+1][n]); 
+    COMM_Reg81 = stod(cus_data[19+1][n]);
+    COMM_Reg82 = stod(cus_data[20+1][n]);
+    COMM_Reg83 = stod(cus_data[21+1][n]);
+    
+   cout << "waferid: " << wafer_id << endl; //  
+   cout << "COMM_Reg36:"<<COMM_Reg36 <<  endl;  
+   cout << "COMM_Reg37:"<<COMM_Reg37 <<  endl;
+   cout << "COMM_Reg21:"<<COMM_Reg21 << endl; 
+   cout << "COMM_Reg22:"<<COMM_Reg22 << endl;  
+   cout << "COMM_Reg23:"<<COMM_Reg23 << endl;   
+   cout << "COMM_Reg24:"<<COMM_Reg24 << endl;  
+   cout << "COMM_Reg25:"<<COMM_Reg25 << endl;   
+   cout <<" COMM_Reg26:"<<COMM_Reg26 << endl;  
+   cout << "COMM_Reg27:"<<COMM_Reg27 << endl;   
+   cout << "COMM_Reg38:"<<COMM_Reg38 << endl;   
+   cout << "COMM_Reg39:"<<COMM_Reg39 << endl;   
+   cout << "COMM_Reg40:"<<COMM_Reg40 << endl;   
+   cout << "COMM_Reg41:"<<COMM_Reg41 << endl;   
+   cout << "COMM_Reg42:"<<COMM_Reg42 << endl;   
+   cout << "COMM_Reg43:"<<COMM_Reg43 << endl;      
+   cout << "COMM_Reg44:"<<COMM_Reg44 << endl;    
+   cout << "COMM_Reg81:"<<COMM_Reg81 << endl;   
+   cout << "COMM_Reg82:"<<COMM_Reg82 << endl;   
+   cout << "COMM_Reg83:"<<COMM_Reg83 << endl;           
+
+  }
+}
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

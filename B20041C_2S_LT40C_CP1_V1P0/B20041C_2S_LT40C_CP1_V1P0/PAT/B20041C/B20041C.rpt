@@ -1,0 +1,89 @@
+Time Set Name
+  0. TS0 = 0
+  1. TS1 = 1
+  2. TS2 = 2
+  3. TS3 = 3
+  4. TS4 = 4
+  5. TS5 = 5
+  6. TS6 = 6
+  7. TS7 = 7
+  8. TS8 = 8
+  9. TS9 = 9
+ 10. TS10 = 10
+ 11. TS11 = 11
+ 12. TS12 = 12
+ 13. TS13 = 13
+ 14. TS14 = 14
+ 15. TS15 = 15
+Time Set no.= 16
+
+Used Time Set
+TS1
+TS2
+
+Header no. : 33
+Pin no.    : 33
+
+Module Name :EN_SET_134     Type :SPM  Address :0       vector no. :7       
+Module Name :EN_SET_135     Type :SPM  Address :7       vector no. :7       
+Module Name :EN_SET_139     Type :SPM  Address :14      vector no. :7       
+Module Name :EN_SET_140     Type :SPM  Address :21      vector no. :7       
+Module Name :H086           Type :SPM  Address :28      vector no. :8       
+Module Name :H087           Type :SPM  Address :36      vector no. :8       
+Module Name :H08B           Type :SPM  Address :44      vector no. :8       
+Module Name :H08C           Type :SPM  Address :52      vector no. :8       
+Module Name :mode_operation_spiType :SPM  Address :60      vector no. :19      
+Module Name :R_TRIM_SCAN    Type :SPM  Address :79      vector no. :90      
+Module Name :RESET_PAT      Type :SPM  Address :169     vector no. :26      
+Module Name :R_0_a0x002     Type :SPM  Address :195     vector no. :89      
+Module Name :TRIM_SCAN      Type :SPM  Address :284     vector no. :45      
+Module Name :WR_024H        Type :SPM  Address :329     vector no. :135     
+Module no.= 14
+
+Label Name :EN_SET_134     Module Name : EN_SET_134     Offset : 0       
+Label Name :__EN_SET_134   Module Name : EN_SET_134     Offset : 6       
+Label Name :EN_SET_135     Module Name : EN_SET_135     Offset : 0       
+Label Name :__EN_SET_135   Module Name : EN_SET_135     Offset : 6       
+Label Name :EN_SET_139     Module Name : EN_SET_139     Offset : 0       
+Label Name :__EN_SET_139   Module Name : EN_SET_139     Offset : 6       
+Label Name :EN_SET_140     Module Name : EN_SET_140     Offset : 0       
+Label Name :__EN_SET_140   Module Name : EN_SET_140     Offset : 6       
+Label Name :H086           Module Name : H086           Offset : 0       
+Label Name :__H086         Module Name : H086           Offset : 7       
+Label Name :H087           Module Name : H087           Offset : 0       
+Label Name :__H087         Module Name : H087           Offset : 7       
+Label Name :H08B           Module Name : H08B           Offset : 0       
+Label Name :__H08B         Module Name : H08B           Offset : 7       
+Label Name :H08C           Module Name : H08C           Offset : 0       
+Label Name :__H08C         Module Name : H08C           Offset : 7       
+Label Name :mode_operation_spiModule Name : mode_operation_spiOffset : 0       
+Label Name :__mode_operation_spiModule Name : mode_operation_spiOffset : 18      
+Label Name :R_TRIM_SCAN    Module Name : R_TRIM_SCAN    Offset : 0       
+Label Name :__R_TRIM_SCAN  Module Name : R_TRIM_SCAN    Offset : 89      
+Label Name :RESET_PAT      Module Name : RESET_PAT      Offset : 0       
+Label Name :__RESET_PAT    Module Name : RESET_PAT      Offset : 25      
+Label Name :R_0_a0x002     Module Name : R_0_a0x002     Offset : 0       
+Label Name :__R_0_a0x002   Module Name : R_0_a0x002     Offset : 88      
+Label Name :TRIM_SCAN      Module Name : TRIM_SCAN      Offset : 0       
+Label Name :__TRIM_SCAN    Module Name : TRIM_SCAN      Offset : 44      
+Label Name :WR_024H        Module Name : WR_024H        Offset : 0       
+Label Name :__WR_024H      Module Name : WR_024H        Offset : 134     
+Label no.= 28
+
+File :  EN_SET_86H.pat  SPM :(0)-(6)  FPM :(0)-(-1)
+File :  EN_SET_87H.pat  SPM :(7)-(13)  FPM :(0)-(-1)
+File :  EN_SET_8BH.pat  SPM :(14)-(20)  FPM :(0)-(-1)
+File :  EN_SET_8CH.pat  SPM :(21)-(27)  FPM :(0)-(-1)
+File :        H086.pat  SPM :(28)-(35)  FPM :(0)-(-1)
+File :        H087.pat  SPM :(36)-(43)  FPM :(0)-(-1)
+File :        H08B.pat  SPM :(44)-(51)  FPM :(0)-(-1)
+File :        H08C.pat  SPM :(52)-(59)  FPM :(0)-(-1)
+File : mode_operation_spi.pat  SPM :(60)-(78)  FPM :(0)-(-1)
+File :   READ_BACK.pat  SPM :(79)-(168)  FPM :(0)-(-1)
+File :   RESET_PAT.pat  SPM :(169)-(194)  FPM :(0)-(-1)
+File :  R_0_a0x002.pat  SPM :(195)-(283)  FPM :(0)-(-1)
+File :   TRIM_SCAN.pat  SPM :(284)-(328)  FPM :(0)-(-1)
+File :     WR_024H.pat  SPM :(329)-(463)  FPM :(0)-(-1)
+SPM memory size = 464
+FPM memory size = 0
+

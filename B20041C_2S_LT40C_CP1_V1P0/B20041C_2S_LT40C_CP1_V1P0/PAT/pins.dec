@@ -1,0 +1,62 @@
+ DEC_MODE APAS; 
+ 
+ PIN_LIST  (pins)
+ {
+     V33_dig       =  601      :  594       = 8     = MLDPS ;
+     NV5           =  602      :  593       = 9     = MLDPS ;
+     VDD_CH1       =  583      :  588       = 1     = MLDPS ;
+     VDD_CH2       =  600      :  595       = 2     = MLDPS ; 
+     VDD_CH3       =  603      :  592       = 3     = MLDPS ;
+     VDD_CH4       =  579      :  576       = 4     = MLDPS ;
+     V33_1_4       =  581      :  590       = 5     = MLDPS ;
+     V33_2         =  582      :  589       = 6     = MLDPS ;
+     V33_3         =  580      :  591       = 7     = MLDPS ;
+     TP_MLDPS      =  578      :  577       = 17    = MLDPS ;
+     VFS_MLDPS     =  604      :  607       = 18    = MLDPS ;
+      
+     RST           =  24       :  296       = 10    = IO    ;
+     SDI           =  33       :  289       = 11    = IO    ;
+     SDO           =  28       :  292       = 12    = IO    ;
+     TRT           =  40       :  280       = 13    = IO    ;
+     TRR           =  41       :  281       = 14    = IO    ;
+     CS            =  29       :  293       = 15    = IO    ;
+     EN_SET        =  21       :  301       = 16    = IO    ;
+     TP            =  20       :  300       = 19    = IO    ;
+     VFS           =  25       :  297       = 18    = IO    ;
+     SCLKI         =  36       :  284       = 20    = IO    ;
+     SCLKO         =  32       :  288       = 24    = IO    ;
+     LD            =  37       :  285       = 28    = IO    ;
+
+}
+
+PIN_GROUP{ 
+  os_pin     =TP+SCLKO+EN_SET+RST+CS+SDI+SCLKI+LD+TRT+TRR+VFS+SDO;
+
+  EFUSE_pin  =LD+VFS+TRT+TRR+SCLKI+SDO;
+  
+  
+  //change channel
+       RESET =RST;
+     SD_IN   =SDI;
+     SD_OUT  =SDO;
+     
+     SCLK_IN =SCLKI;
+    SCLK_OUT =SCLKO;
+    
+  spi_pin    =CS+SD_OUT+SD_IN+SCLK_IN;
+    
+    
+}
+
+POWER_PIN_GROUP{
+       NV50 =NV5;
+
+       V33  =V33_1_4+V33_2+V33_3;
+ DPS_allpin =MLDPS_ALLPINS-TP_MLDPS-VFS_MLDPS;
+ }
+UR_PIN_GROUP{
+
+}
+ 
+ 
+ 
